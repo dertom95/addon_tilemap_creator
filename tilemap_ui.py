@@ -28,16 +28,59 @@ class TMC_PT_main(bpy.types.Panel):
         layout = self.layout
 
         row = layout.row()
-        row.label(text="manage tilemap")
+        row.label(text="manage tilemap 2")
         
+        print(type(layout))
+
+
+        outer_box = layout.box()
+        row = outer_box.row()
+
+        for idx,tilemap in enumerate(settings.tilemaps):
+            innerbox = outer_box.box()
+            
+            row = innerbox.row()
+            row.prop(tilemap,"name")
+            op = row.operator("tmc.manage_tilemaps",text="",icon="REMOVE")
+            op.operation = TMC_Operations.TMC_OP_DELETE_TILEMAP
+            op.idx = idx
+            
+            col_box = innerbox.box()
+            for cidx,tcol in enumerate(tilemap.parent_collections):
+                row = col_box.row()
+                row.prop(tcol,"collection")
+                # if tcol.collection:
+                #     row.label(text="%s"%len(tcol.collection.children))
+                op = row.operator("tmc.manage_tilemaps",text="",icon="REMOVE")
+                op.operation = TMC_Operations.TMC_OP_REMOVE_ROOT_COLLECTION
+                op.idx = idx
+                op.cidx = cidx
+            
+            row = col_box.row()
+            op = row.operator("tmc.manage_tilemaps",text="",icon="ADD")
+            op.operation = TMC_Operations.TMC_OP_ADD_ROOT_COLLECTION
+            op.idx = idx
+
+            row = innerbox.row()
+            row.prop(tilemap,"render_size")
+            
+            row = innerbox.row()
+            row.prop(tilemap,"delta_size")
+
+            row = innerbox.row()
+            row.prop(tilemap,"output_path")
+
+            row = innerbox.row()
+            op = row.operator("tmc.manage_tilemaps",text="Render Single Tiles")
+            op.operation = TMC_Operations.TMC_OP_REQUEST_RENDER
+            op.idx = idx
+            if not tilemap.output_path:
+                row.enabled=False
+
+            
+
         row = layout.row()
-        row.prop(settings,"select_collection")
-        
-        row = layout.row()
-        op = row.operator("tmc.manage_tilemap")
-        if settings.select_collection:
-            op.operation = TMC_Operations.TMC_OP_CREATE_TILE
-            op.col_name = settings.select_collection.name
-        else:
-            row.enabled = False
+        op = row.operator("tmc.manage_tilemaps",text="create tilemap",icon="ADD")
+        op.operation = TMC_Operations.TMC_OP_CREATE_TILEMAP
+
 

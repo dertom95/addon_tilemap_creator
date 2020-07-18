@@ -1,24 +1,71 @@
 import bpy
 import traceback,sys
-from . tilemap_data import TMC_DT_COLLECTION_WRAPPER
 
 
 class TMC_Operations:
-    TMC_OP_CREATE_TILE = "create_tile"
+    TMC_OP_CREATE_TILEMAP = "create_tilemap"
+    TMC_OP_DELETE_TILEMAP = "delete_tilemap"
+    TMC_OP_ADD_ROOT_COLLECTION = "add_collection"
+    TMC_OP_REMOVE_ROOT_COLLECTION = "remove_collection"
+    TMC_OP_REQUEST_RENDER = "request_render"
 
     TMC_CAM_PRESET_TOPDOWN = "cam_top_down"    # top down
     TMC_CAM_PRESET_FRONTAL45 = "cam_frontal45" # looking diagonal frontal on tile
     TMC_CAM_PRESET_ISO = "cam_iso"             # iso. (is this iso?)
 
-class TMC_OT_Manage_tilemaps(bpy.types.Operator):
-    """"""
+class TMC_OT_CRUD_tilemaps(bpy.types.Operator):
+    """ CRUD Tilemap """
 
-    bl_idname = "tmc.manage_tilemap"
+    bl_idname = "tmc.manage_tilemaps"
     bl_label = "Tilemap Operation"
 
-    operation       : bpy.props.StringProperty()
+    operation : bpy.props.StringProperty() 
+    idx       : bpy.props.IntProperty()
+    cidx      : bpy.props.IntProperty()
+
+    def execute(self, context):
+        settings = bpy.context.scene.tmcSettings
+
+        if self.operation==TMC_Operations.TMC_OP_CREATE_TILEMAP:
+            settings.tilemaps.add()
+
+        elif self.operation==TMC_Operations.TMC_OP_DELETE_TILEMAP:
+            settings.tilemaps.remove(self.idx) 
+
+        elif self.operation==TMC_Operations.TMC_OP_ADD_ROOT_COLLECTION:
+            tilemap = settings.tilemaps[self.idx]
+            tilemap.parent_collections.add()
+
+        elif self.operation==TMC_Operations.TMC_OP_REMOVE_ROOT_COLLECTION:
+            tilemap = settings.tilemaps[self.idx]
+            tilemap.parent_collections.remove(self.cidx)
+
+        elif self.operation==TMC_Operations.TMC_OP_REQUEST_RENDER:
+            tilemap = settings.tilemaps[self.idx]
+            collection_names = ""
+            for sub_col in tilemap.parent_collections:
+                if sub_col.collection:
+                    for child in sub_col.collection.children:
+                        collection_names = child.name if collection_names=="" else "%s,%s"%(collection_names,child.name)
+
+            print("collection_name:%s" % collection_names)
+            bpy.ops.tmc.render_tiles(scene_name="tilemap_scene"
+                                        ,col_names=collection_names
+                                        ,output_folder=tilemap.output_path
+                                        ,render_width=tilemap.render_size[0]
+                                        ,render_height=tilemap.render_size[1])
+
+        return{'FINISHED'}      
+
+
+class TMC_OT_Render_tiles(bpy.types.Operator):
+    """ Render Tilemap """
+
+    bl_idname = "tmc.render_tiles"
+    bl_label = "Tilemap Operation"
+
     scene_name      : bpy.props.StringProperty()
-    col_name        : bpy.props.StringProperty()
+    col_names       : bpy.props.StringProperty()
     render_width    : bpy.props.IntProperty(default=512)
     render_height   : bpy.props.IntProperty(default=512)
     output_folder   : bpy.props.StringProperty()
@@ -65,41 +112,49 @@ class TMC_OT_Manage_tilemaps(bpy.types.Operator):
     def execute(self, context):
         #settings = bpy.context.scene.tmcSettings
 
-        if self.operation == TMC_Operations.TMC_OP_CREATE_TILE:
-            before_scene = bpy.context.scene
-            
-            try:
-                scene = None
-                if self.scene_name and self.scene_name in bpy.data.scenes:
-                    scene = bpy.data.scenes[self.scene_name]
-                    bpy.context.window.scene = scene
-                    if "tile" in bpy.data.objects:
-                        bpy.data.objects.remove(bpy.data.objects["tile"]) # remove old tile
-                else:                    
-                    scene = self.setup_scene(context)
+        before_scene = bpy.context.scene
+        
+        try:
+            scene = None
+            if self.scene_name and self.scene_name in bpy.data.scenes:
+                scene = bpy.data.scenes[self.scene_name]
+                bpy.context.window.scene = scene
+                if "tile" in bpy.data.objects:
+                    bpy.data.objects.remove(bpy.data.objects["tile"]) # remove old tile
+            else:                    
+                scene = self.setup_scene(context)
 
-                bpy.context.scene.render.resolution_x = self.render_width
-                bpy.context.scene.render.resolution_y = self.render_height
+            bpy.context.scene.render.resolution_x = self.render_width
+            bpy.context.scene.render.resolution_y = self.render_height
+            bpy.context.scene.render.film_transparent = True
 
-                bpy.ops.object.collection_instance_add(collection=self.col_name, align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
-                bpy.context.active_object.name = "tile"
+            colnames = self.col_names.split(",")
+
+            for col_name in colnames:
+                col_name = col_name.strip() 
+                if col_name not in bpy.data.collections:
+                    print("Unknown collection:%s" % col_name)
+                    continue
+
+                bpy.ops.object.collection_instance_add(collection=col_name, align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
+                current_tile = bpy.context.active_object
 
                 bpy.ops.render.render()
                 render_image = bpy.data.images["Render Result"]
-                filepath = "%s/%s_%s/%s.png" % (self.output_folder,self.render_width,self.render_height,self.col_name)
+                filepath = "%s/%s_%s/%s.png" % (self.output_folder,self.render_width,self.render_height,col_name)
                 render_image.save_render(filepath)
-                if self.remove_scene:
-                    bpy.data.scenes.remove(scene)
+                bpy.data.objects.remove(current_tile) # remove old tile
 
-            except Exception:
-                print("ERROR: Tilemap Operation [%s]: scene_name:%s col_name:%s width:%s height:%s" % ( TMC_Operations.TMC_OP_CREATE_TILE,self.scene_name,self.col_name,self.render_width,self.render_height ))
-                traceback.print_exc()
+            if self.remove_scene:
+                bpy.data.scenes.remove(scene)
 
-            # finally:
-            #     bpy.context.window.scene = before_scene
+        except Exception:
+            print("ERROR: Tilemap Operation [%s]: scene_name:%s col_name:%s width:%s height:%s" % ( "Render Tilemap",self.scene_name,self.col_name,self.render_width,self.render_height ))
+            traceback.print_exc()
+
+        # finally:
+        #     bpy.context.window.scene = before_scene
                 
-        else:
-            print("ERROR: Tilemap Operation: Unknown operation %s" % self.operation)                        
 
 
         return{'FINISHED'}
