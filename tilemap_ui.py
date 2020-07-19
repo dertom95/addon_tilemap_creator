@@ -58,11 +58,17 @@ class TMC_PT_main(bpy.types.Panel):
             op.operation = TMC_Operations.TMC_OP_ADD_ROOT_COLLECTION
             op.idx = idx
 
+            row.prop(tilemap,"recursive")
+
+
+            row = innerbox.row()
+            row.prop(tilemap,"cam_preset")
+
             row = innerbox.row()
             row.prop(tilemap,"render_size")
             
             row = innerbox.row()
-            row.prop(tilemap,"cam_delta_scale")
+            row.prop(tilemap,"cam_ortho_scale")
 
             row = innerbox.row()
             row.prop(tilemap,"output_path")
