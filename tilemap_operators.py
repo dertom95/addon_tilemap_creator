@@ -13,6 +13,15 @@ class TMC_Operations:
     TMC_CAM_PRESET_FRONTAL45 = "cam_frontal45" # looking diagonal frontal on tile
     TMC_CAM_PRESET_ISO = "cam_iso"             # iso. (is this iso?)
 
+def parent_collection_to_csv_children(parent_collection,collection_names="",recursive=False):
+    for sub_col in parent_collection:
+        if sub_col.collection:
+            for child in sub_col.collection.children:
+                collection_names = child.name if collection_names=="" else "%s,%s"%(collection_names,child.name)
+                if recursive and len(child.children)>0:
+                    collection_names = parent_collection_to_csv_children(child,collection_names,True)
+    return collection_names
+
 class TMC_OT_CRUD_tilemaps(bpy.types.Operator):
     """ CRUD Tilemap """
 
@@ -43,17 +52,15 @@ class TMC_OT_CRUD_tilemaps(bpy.types.Operator):
         elif self.operation==TMC_Operations.TMC_OP_REQUEST_RENDER:
             tilemap = settings.tilemaps[self.idx]
             collection_names = ""
-            for sub_col in tilemap.parent_collections:
-                if sub_col.collection:
-                    for child in sub_col.collection.children:
-                        collection_names = child.name if collection_names=="" else "%s,%s"%(collection_names,child.name)
 
             print("collection_name:%s" % collection_names)
             bpy.ops.tmc.render_tiles(scene_name="tilemap_scene"
                                         ,col_names=collection_names
                                         ,output_folder=tilemap.output_path
                                         ,render_width=tilemap.render_size[0]
-                                        ,render_height=tilemap.render_size[1])
+                                        ,render_height=tilemap.render_size[1]
+                                        ,cam_delta_scale=tilemap.cam_delta_scale
+                                        ,remove_scene=True)
 
         return{'FINISHED'}      
 
@@ -71,6 +78,7 @@ class TMC_OT_Render_tiles(bpy.types.Operator):
     output_folder   : bpy.props.StringProperty()
     cam_preset      : bpy.props.StringProperty(default=TMC_Operations.TMC_CAM_PRESET_ISO)
     remove_scene    : bpy.props.BoolProperty(default=False)
+    cam_delta_scale : bpy.props.FloatProperty()
 
     def set_camera_preset(self,cam,preset):
         if preset == TMC_Operations.TMC_CAM_PRESET_FRONTAL45:
@@ -78,7 +86,7 @@ class TMC_OT_Render_tiles(bpy.types.Operator):
             cam.rotation_euler = (0.7853981852531433, -0.0, 0.0)
         #TopDown
         elif preset == TMC_Operations.TMC_CAM_PRESET_TOPDOWN:
-            cam.location = (0.0, -20.0, 28.18587303161621)
+            cam.location = (0.0, 0, 28.18587303161621)
             cam.rotation_euler = (0,0,0)
         #iso?
         elif preset == TMC_Operations.TMC_CAM_PRESET_ISO:
@@ -97,6 +105,8 @@ class TMC_OT_Render_tiles(bpy.types.Operator):
         # create camera
         cam = bpy.data.cameras.new("__tilemap_cam")
         cam.type="ORTHO"
+        cam.ortho_scale = 6.0 + self.cam_delta_scale
+
         camnode = bpy.data.objects.new("__timemap_camnode",cam)
         self.set_camera_preset(camnode,self.cam_preset)
 
@@ -105,7 +115,10 @@ class TMC_OT_Render_tiles(bpy.types.Operator):
         tilemap_scene.collection.objects.link(camnode)
         # create light
         light = bpy.data.lights.new("__tilemap_light","SUN")
+        light.energy=5
+        light.specular_factor=0.01
         lightnode = bpy.data.objects.new("__tilemape_lightnode",light)
+        lightnode.rotation_euler=(0.6503279805183411, 0.055217113345861435, 1.8663908243179321)
         tilemap_scene.collection.objects.link(lightnode)   
         return tilemap_scene     
 

@@ -30,9 +30,6 @@ class TMC_PT_main(bpy.types.Panel):
         row = layout.row()
         row.label(text="manage tilemap 2")
         
-        print(type(layout))
-
-
         outer_box = layout.box()
         row = outer_box.row()
 
@@ -65,7 +62,7 @@ class TMC_PT_main(bpy.types.Panel):
             row.prop(tilemap,"render_size")
             
             row = innerbox.row()
-            row.prop(tilemap,"delta_size")
+            row.prop(tilemap,"cam_delta_scale")
 
             row = innerbox.row()
             row.prop(tilemap,"output_path")
