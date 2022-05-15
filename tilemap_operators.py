@@ -1,4 +1,4 @@
-import bpy
+import bpy,os
 import traceback,sys
 
 
@@ -81,8 +81,9 @@ class TMC_OT_Render_tiles(bpy.types.Operator):
     render_height   : bpy.props.IntProperty(default=512)
     output_folder   : bpy.props.StringProperty()
     cam_preset      : bpy.props.StringProperty(default=TMC_Operations.TMC_CAM_PRESET_ISO)
-    remove_scene    : bpy.props.BoolProperty(default=False)
+    remove_scene    : bpy.props.BoolProperty(default=True)
     cam_ortho_scale : bpy.props.FloatProperty(default=5.0)
+    save_filenames  : bpy.props.StringProperty(default="output_files.txt")
 
     def set_camera_preset(self,cam,preset):
         if preset == TMC_Operations.TMC_CAM_PRESET_FRONTAL45:
@@ -94,11 +95,11 @@ class TMC_OT_Render_tiles(bpy.types.Operator):
             cam.rotation_euler = (0,0,0)
         #iso?
         elif preset == TMC_Operations.TMC_CAM_PRESET_ISO:
-            cam.location = (-20.0, -20.0, 28.18587303161621)
+            cam.location = (-18.0, -18.0, 30)
             cam.rotation_euler = (0.7853981852531433, -0.0, -0.7853981852531433)
         else:
             print("ERROR: Tilemap Operation: Unknown camera-presetion %s! Using iso-preset!" % self.cam_preset)       
-            set_camera_preset(TMC_Operations.TMC_CAM_PRESET_ISO)
+            self.set_camera_preset(TMC_Operations.TMC_CAM_PRESET_ISO)
 
 
     def setup_scene(self, context):
@@ -122,15 +123,16 @@ class TMC_OT_Render_tiles(bpy.types.Operator):
         light.energy=5
         light.specular_factor=0.01
         lightnode = bpy.data.objects.new("__tilemape_lightnode",light)
-        lightnode.rotation_euler=(0.6503279805183411, 0.055217113345861435, 1.8663908243179321)
+        #lightnode.rotation_euler=(0.6503279805183411, 0.055217113345861435, 1.8663908243179321)
+        lightnode.rotation_euler=camnode.rotation_euler
         tilemap_scene.collection.objects.link(lightnode)   
         return tilemap_scene     
 
     def execute(self, context):
+        self.new_file_data=""
         #settings = bpy.context.scene.tmcSettings
 
         before_scene = bpy.context.scene
-        
         try:
             scene = None
             if self.scene_name and self.scene_name in bpy.data.scenes:
@@ -149,6 +151,15 @@ class TMC_OT_Render_tiles(bpy.types.Operator):
 
             colnames = self.col_names.split(",")
 
+            abs_path = bpy.path.abspath(self.output_folder)
+
+            dir_name = os.path.dirname(abs_path)
+            try:
+                os.makedirs(dir_name)
+            except:
+                pass
+
+
             for col_name in colnames:
                 print("Process:%s" % col_name)
 
@@ -162,12 +173,21 @@ class TMC_OT_Render_tiles(bpy.types.Operator):
 
                 bpy.ops.render.render()
                 render_image = bpy.data.images["Render Result"]
-                filepath = "%s/%s_%s/%s.png" % (self.output_folder,self.render_width,self.render_height,col_name)
+                
+#                filepath = "%s/%s_%s_%s.png" % (abs_path,self.render_width,self.render_height,col_name)
+                filepath = "%s/%s.png" % (abs_path,col_name)
                 render_image.save_render(filepath)
+                print("Thumbnail wrote to :%s" %filepath)
+                self.new_file_data+="%s\n" % filepath
                 bpy.data.objects.remove(current_tile) # remove old tile
 
             if self.remove_scene:
                 bpy.data.scenes.remove(scene)
+
+            if self.save_filenames!="":
+                text_file = open("%s/%s" % (abs_path,self.save_filenames) , "w")
+                n = text_file.write(self.new_file_data)
+                text_file.close()
 
         except Exception:
             print("ERROR: Tilemap Operation [%s]: scene_name:%s col_name:%s width:%s height:%s" % ( "Render Tilemap",self.scene_name,self.col_name,self.render_width,self.render_height ))
