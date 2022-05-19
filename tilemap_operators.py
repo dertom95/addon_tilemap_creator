@@ -83,7 +83,10 @@ class TMC_OT_Render_tiles(bpy.types.Operator):
     cam_preset      : bpy.props.StringProperty(default=TMC_Operations.TMC_CAM_PRESET_ISO)
     remove_scene    : bpy.props.BoolProperty(default=True)
     cam_ortho_scale : bpy.props.FloatProperty(default=5.0)
+    rotation        : bpy.props.FloatVectorProperty(size=3)
     save_filenames  : bpy.props.StringProperty(default="output_files.txt")
+    save_filename_postfix : bpy.props.StringProperty(default="")
+    save_filenames_append : bpy.props.BoolProperty()
 
     def set_camera_preset(self,cam,preset):
         if preset == TMC_Operations.TMC_CAM_PRESET_FRONTAL45:
@@ -168,14 +171,14 @@ class TMC_OT_Render_tiles(bpy.types.Operator):
                     print("Unknown collection:%s" % col_name)
                     continue
 
-                bpy.ops.object.collection_instance_add(collection=col_name, align='WORLD', location=(0, 0, 0), scale=(1, 1, 1))
+                bpy.ops.object.collection_instance_add(collection=col_name, align='WORLD', location=(0, 0, 0), rotation=self.rotation, scale=(1, 1, 1))
                 current_tile = bpy.context.active_object
 
                 bpy.ops.render.render()
                 render_image = bpy.data.images["Render Result"]
                 
 #                filepath = "%s/%s_%s_%s.png" % (abs_path,self.render_width,self.render_height,col_name)
-                filepath = "%s/%s.png" % (abs_path,col_name)
+                filepath = "%s/%s%s.png" % (abs_path,col_name,self.save_filename_postfix)
                 render_image.save_render(filepath)
                 print("Thumbnail wrote to :%s" %filepath)
                 self.new_file_data+="%s\n" % filepath
@@ -185,7 +188,11 @@ class TMC_OT_Render_tiles(bpy.types.Operator):
                 bpy.data.scenes.remove(scene)
 
             if self.save_filenames!="":
-                text_file = open("%s/%s" % (abs_path,self.save_filenames) , "w")
+                if self.save_filenames_append:
+                    text_file = open("%s/%s" % (abs_path,self.save_filenames) , "a")
+                else:
+                    text_file = open("%s/%s" % (abs_path,self.save_filenames) , "w")
+
                 n = text_file.write(self.new_file_data)
                 text_file.close()
 
